@@ -1,54 +1,72 @@
-```js
+# WebSocket client chain
 
-wss.on('connection', (ws) => {
+Creates a chain of all websocket connections.
+This allow clients to modifie the the data that the server emits.
 
-    console.log("Stream added to chain")
-    let stream = WebSocket.createWebSocketStream(ws);
+## Dataflow
+![Dataflow](./docs/data-flow.jpg)
 
-    streams.add(stream);
+## Example
+```sh
+node index.js
+```
 
+### Client #1
+```sh
+const { Transform } = require("stream");
+const WebSocket = require('ws');
 
-    input.unpipe();
-    output.unpipe();
+const ws = new WebSocket('ws://127.0.0.1:8080');
 
-
-    ws.on("close", () => {
-
-        // works if only single stream is connected
-        // if > 1, after disconnect to message transmitted
-
-        stream.unpipe();
-        streams.delete(stream);
-
-        stream.end();
-        stream.destroy();
-
-        if (wss.clients.size === 0) {
-            input.pipe(output);
-        }
-
-        console.log("Stream disconneected")
-
-    });
+const duplex = WebSocket.createWebSocketStream(ws);
 
 
-    // cleanup websocket stream chains
-    // this prevents double piping
-    // NOTE: This is not the issue with above problem
-    chain.forEach((value, key) => {
-        key.unpipe();
-        value.unpipe();
-    });
+const transform = new Transform({
+    transform(chunk, encoding, cb) {
 
+        chunk = chunk.toString();
 
-    let stack = Array.from(streams).reduce((prev, cur) => {
-        let next = prev.pipe(cur);
-        chain.set(prev, next);
-        return next;
-    }, input);
+        console.log("Possible modifiecation of", chunk);
 
+        chunk = chunk.toUpperCase();
 
-    stack.pipe(output);
+        this.push(chunk);
 
+        cb();
+
+    }
 });
+
+
+duplex.pipe(transform).pipe(duplex);
+```
+
+### Client #2
+```js
+const { Transform } = require("stream");
+const WebSocket = require('ws');
+
+const ws = new WebSocket('ws://127.0.0.1:8080');
+
+const duplex = WebSocket.createWebSocketStream(ws);
+
+
+const transform = new Transform({
+    transform(chunk, encoding, cb) {
+
+        chunk = chunk.toString();
+
+        console.log("Possible modifiecation of", chunk);
+
+        chunk = chunk.replace(/O/gi, "/");
+
+        this.push(chunk);
+
+        cb();
+
+    }
+});
+
+
+duplex.pipe(transform).pipe(duplex);
 ```

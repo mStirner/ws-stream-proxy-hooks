@@ -1,4 +1,4 @@
-const { PassThrough, pipeline } = require("stream");
+const { PassThrough, Duplex } = require("stream");
 const WebSocket = require('ws');
 
 const wss = new WebSocket.Server({
@@ -10,6 +10,11 @@ const link = new Map();
 
 const input = new PassThrough();
 const output = new PassThrough();
+
+const pipeline = Duplex.from({
+    writable: input,
+    readable: output
+});
 
 if (wss.clients.size === 0) {
     input.pipe(output);
@@ -33,13 +38,6 @@ function createPipeline() {
     }, input);
     stack.pipe(output);
 
-    /*
-    // pipline produce multiple output pipes
-    // perhaps because "link" cleanup?
-        pipeline(input, ...streams, output, (err) => {
-            console.log(err || "PIpeline done")
-        });
-        */
 
 }
 
@@ -73,20 +71,13 @@ wss.on('connection', (ws) => {
 });
 
 
-output.on("readable", () => {
-
-    let chunk = output.read();
-
-    if (chunk) {
-        console.log("pipeline output:", chunk.toString())
-    }
-
-
+pipeline.on("data", (data) => {
+    console.log("pipeline output:", data.toString());
 });
 
 let counter = 0;
 
 setInterval(() => {
     counter += 1;
-    input.write(`[${counter}] Hello World - ${Date.now()}`);
-}, 5000);
+    pipeline.write(`[${counter}] Hello World - ${Date.now()}`);
+}, 1000);
