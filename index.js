@@ -1,5 +1,8 @@
-const { PassThrough, Duplex } = require("stream");
+const { PassThrough, Duplex, Transform } = require("stream");
 const WebSocket = require('ws');
+const { randomUUID } = require("crypto");
+
+const dispatcher = require("./dispatcher");
 
 const wss = new WebSocket.Server({
     port: 8080
@@ -9,17 +12,19 @@ const streams = new Set();
 const link = new Map();
 
 const input = new PassThrough();
+const trans = new Transform({
+    transform(chunk, encoding, cb) {
+        //setTimeout(() => {
+        cb(null, chunk);
+        //}, 6000);
+    }
+});
 const output = new PassThrough();
 
 const pipeline = Duplex.from({
     writable: input,
     readable: output
 });
-
-if (wss.clients.size === 0) {
-    input.pipe(output);
-}
-
 
 function createPipeline() {
 
@@ -29,15 +34,32 @@ function createPipeline() {
         value.unpipe();
     });
 
+    input.unpipe();
+    output.unpipe();
 
-    console.log("Create pipline with participant", streams.size);
-    let stack = Array.from(streams).reduce((prev, cur) => {
-        let next = prev.pipe(cur);
-        link.set(prev, next);
-        return next;
-    }, input);
-    stack.pipe(output);
+    if (streams.size > 0) {
 
+        console.log("Create pipline with participant", streams.size);
+
+        Array.from(streams).reduce((prev, cur, i) => {
+
+            cur.index = i;
+            let next = dispatcher(cur, i + 1 === streams.size);
+
+            prev.pipe(next);
+            link.set(prev, next);
+
+            return next;
+
+        }, input).pipe(output);
+
+    } else {
+
+        console.log("No clients connected");
+
+        input.pipe(dispatcher(trans, true)).pipe(output);
+
+    }
 
 }
 
@@ -48,6 +70,22 @@ wss.on('connection', (ws) => {
 
     console.log("Stream added to link")
     let stream = WebSocket.createWebSocketStream(ws);
+
+    stream.on("error", (err) => {
+
+        if (err.code === 1000) {
+
+            ws.close(1000, err.message);
+
+        } else {
+
+            ws.close();
+
+        }
+
+        console.error("Error on websocket stream", err);
+
+    });
 
     streams.add(stream);
 
@@ -70,14 +108,24 @@ wss.on('connection', (ws) => {
 
 });
 
+createPipeline();
+
 
 pipeline.on("data", (data) => {
-    console.log("pipeline output:", data.toString());
+    console.log("pipeline output:", JSON.parse(data.toString()));
 });
 
 let counter = 0;
 
 setInterval(() => {
+
     counter += 1;
-    pipeline.write(`[${counter}] Hello World - ${Date.now()}`);
-}, 1000);
+
+    let msg = {
+        uuid: randomUUID(),
+        data: `[${counter}] Hello World - ${Date.now()}`
+    }
+
+    pipeline.write(JSON.stringify(msg));
+
+}, 1500);

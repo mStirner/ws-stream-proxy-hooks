@@ -10,14 +10,13 @@ const transform = new Transform({
     transform(chunk, encoding, cb) {
 
         chunk = chunk.toString();
+        chunk = JSON.parse(chunk);
 
         console.log("Possible modifiecation of", chunk);
 
-        chunk = chunk.replace(/-/gi, "#");
+        chunk.data = chunk.data.replace(/-/gi, "#");
 
-        this.push(chunk);
-
-        cb();
+        cb(null, JSON.stringify(chunk));
 
     }
 });
