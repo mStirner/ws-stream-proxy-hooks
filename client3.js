@@ -1,23 +1,38 @@
+const process = require("process");
+const path = require("path");
 const { Transform } = require("stream");
 const WebSocket = require('ws');
 
-const ws = new WebSocket('ws://127.0.0.1:8080');
-
+const ws = new WebSocket(`ws://127.0.0.1:8080?name=${path.basename(__filename)}`);
 const duplex = WebSocket.createWebSocketStream(ws);
+
+console.clear();
+
+const OBJECT_MODE = (process.argv[2] === "--object") ? true : false;
 
 
 const transform = new Transform({
     transform(chunk, encoding, cb) {
 
-        chunk = chunk.toString();
-
         console.log("Possible modifiecation of", chunk);
 
-        chunk = chunk.replace(/e/gi, "3");
+        setTimeout(() => {
+            if (OBJECT_MODE) {
 
-        this.push(chunk);
+                chunk = chunk.toString();
+                chunk = JSON.parse(chunk);
 
-        cb();
+                chunk.data = chunk.data.replace(/e/gi, "3");
+
+                cb(null, JSON.stringify(chunk));
+
+            } else {
+
+                chunk = String(chunk).replace(/e/gi, "3");
+                cb(null, chunk);
+
+            }
+        }, Math.floor(Math.random() * 4) * 1000);
 
     }
 });
