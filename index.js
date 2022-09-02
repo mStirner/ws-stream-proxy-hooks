@@ -1,39 +1,54 @@
 const { PassThrough, Duplex, Transform } = require("stream");
-const WebSocket = require('ws');
 const { randomUUID } = require("crypto");
+const { fork } = require("child_process");
+const { URL } = require("url");
+
+const WebSocket = require('ws');
+const colors = require("colors");
+
+
+console.clear();
+
+process.nextTick(() => {
+    [
+        "client1.js",
+        "client2.js",
+        "client3.js",
+        "client4.js"
+    ].forEach((file) => {
+
+        console.log("Spawn client", file)
+
+        fork(file, [], {
+            stdio: "ignore"
+        });
+
+    });
+});
+
 
 const dispatcher = require("./dispatcher");
+const wrapper = require("./timeout-wrapper.js");
 
 const wss = new WebSocket.Server({
     port: 8080
 });
 
-const streams = new Set();
-const link = new Map();
 
+const streams = new Set();
 const input = new PassThrough();
-const trans = new Transform({
-    transform(chunk, encoding, cb) {
-        //setTimeout(() => {
-        cb(null, chunk);
-        //}, 6000);
-    }
-});
 const output = new PassThrough();
 
-const pipeline = Duplex.from({
-    writable: input,
-    readable: output
-});
 
 function createPipeline() {
 
-    // cleanup before creating new pipeline
-    link.forEach((value, key) => {
+    // necessary clenaup
+    streams.forEach((key, value) => {
         key.unpipe();
         value.unpipe();
     });
 
+    // necessary clenaup
     input.unpipe();
     output.unpipe();
 
@@ -41,13 +56,11 @@ function createPipeline() {
 
         console.log("Create pipline with participant", streams.size);
 
-        Array.from(streams).reduce((prev, cur, i) => {
+        Array.from(streams).reduce((prev, cur) => {
 
-            cur.index = i;
-            let next = dispatcher(cur, i + 1 === streams.size);
+            let next = wrapper(cur);
 
             prev.pipe(next);
-            link.set(prev, next);
 
             return next;
 
@@ -55,27 +68,37 @@ function createPipeline() {
 
     } else {
 
-        console.log("No clients connected");
+        console.log("No participants, pipe input/output");
 
-        input.pipe(dispatcher(trans, true)).pipe(output);
+        input.pipe(output);
 
     }
 
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
 
-    input.unpipe();
-    output.unpipe();
+    ws.isAlive = true;
+    ws.on("pong", () => {
+        ws.isAlive = true;
+    });
 
     console.log("Stream added to link")
     let stream = WebSocket.createWebSocketStream(ws);
 
+    // identifiy stream by url query string name property
+    let uri = new URL(req.url, `http://${req.headers.host}`);
+    stream.name = uri.searchParams.get("name");
+
     stream.on("error", (err) => {
+
+        console.log(err)
 
         if (err.code === 1000) {
 
-            ws.close(1000, err.message);
+            console.log("code 1000, destroy/kick stream");
+            //ws.terminate(1000, err);
+            ws.emit("close");
 
         } else {
 
@@ -108,24 +131,67 @@ wss.on('connection', (ws) => {
 
 });
 
-createPipeline();
 
+const interval = setInterval(() => {
+    wss.clients.forEach((ws) => {
 
-pipeline.on("data", (data) => {
-    console.log("pipeline output:", JSON.parse(data.toString()));
+        if (ws.isAlive === false) {
+            return ws.terminate();
+        }
+
+        ws.isAlive = false;
+        ws.ping();
+
+    });
+}, 4000);
+
+wss.on('close', () => {
+    clearInterval(interval);
 });
+
+
+function triggerWsHooks(data, cb) {
+
+    output.once("data", (data) => {
+        cb(data);
+    });
+
+    console.log();
+    console.log(`pipeline input: "${String(data)}"`);
+
+    input.write(data, () => {
+        //console.log("Writen");
+    });
+
+}
+
+
+
 
 let counter = 0;
 
-setInterval(() => {
+function loop() {
 
+    let start = Date.now();
     counter += 1;
 
-    let msg = {
-        uuid: randomUUID(),
-        data: `[${counter}] Hello World - ${Date.now()}`
-    }
+    triggerWsHooks(`[${counter}] Hello World - ${Date.now()}`, (data) => {
 
-    pipeline.write(JSON.stringify(msg));
 
-}, 1500);
+        console.log(`pipeline output (${Date.now() - start}ms): "${String(data)}"`);
+        console.log();
+
+        setTimeout(() => {
+            loop();
+        }, 100);
+
+    });
+
+}
+
+
+// creata initial pipeline
+createPipeline();
+
+// start loop 
+loop();
