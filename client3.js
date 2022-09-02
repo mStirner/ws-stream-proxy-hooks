@@ -1,46 +1,38 @@
+const process = require("process");
+const path = require("path");
 const { Transform } = require("stream");
 const WebSocket = require('ws');
 
-const ws = new WebSocket('ws://127.0.0.1:8080');
-
+const ws = new WebSocket(`ws://127.0.0.1:8080?name=${path.basename(__filename)}`);
 const duplex = WebSocket.createWebSocketStream(ws);
 
-let timeout = true;
+console.clear();
 
-process.stdin.on("data", (chunk) => {
-
-    chunk = chunk.toString();
-    timeout = (chunk == 1);
-
-    if (timeout) {
-        console.log("Timeout activated");
-    } else {
-        console.log("Timeout deactived");
-    }
-
-});
+const OBJECT_MODE = (process.argv[2] === "--object") ? true : false;
 
 
 const transform = new Transform({
     transform(chunk, encoding, cb) {
 
-        chunk = chunk.toString();
-        chunk = JSON.parse(chunk);
-
         console.log("Possible modifiecation of", chunk);
 
-        chunk.data = chunk.data.replace(/e/gi, "3")
+        setTimeout(() => {
+            if (OBJECT_MODE) {
 
-        console.log("timeout", timeout);
+                chunk = chunk.toString();
+                chunk = JSON.parse(chunk);
 
-        if (timeout) {
-            setTimeout(() => {
-                timeout = false;
+                chunk.data = chunk.data.replace(/e/gi, "3");
+
                 cb(null, JSON.stringify(chunk));
-            }, 6000);
-        } else {
-            cb(null, JSON.stringify(chunk));
-        }
+
+            } else {
+
+                chunk = String(chunk).replace(/e/gi, "3");
+                cb(null, chunk);
+
+            }
+        }, Math.floor(Math.random() * 4) * 1000);
 
     }
 });
