@@ -32,7 +32,7 @@ const transform = new Transform({
                 cb(null, chunk);
 
             }
-        }, Math.floor(Math.random() * 4) * 1000);
+        }, 1000);
 
     }
 });

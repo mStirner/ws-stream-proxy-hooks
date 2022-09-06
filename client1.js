@@ -16,21 +16,23 @@ const transform = new Transform({
 
         console.log("Possible modifiecation of", chunk);
 
-        if (OBJECT_MODE) {
+        setTimeout(() => {
+            if (OBJECT_MODE) {
 
-            chunk = chunk.toString();
-            chunk = JSON.parse(chunk);
+                chunk = chunk.toString();
+                chunk = JSON.parse(chunk);
 
-            chunk.data = chunk.data.toUpperCase();
+                chunk.data = chunk.data.toUpperCase();
 
-            cb(null, JSON.stringify(chunk));
+                cb(null, JSON.stringify(chunk));
 
-        } else {
+            } else {
 
-            chunk = String(chunk).toLocaleUpperCase();
-            cb(null, chunk);
+                chunk = String(chunk).toLocaleUpperCase();
+                cb(null, chunk);
 
-        }
+            }
+        }, 1000);
 
     }
 });
