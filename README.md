@@ -6,6 +6,8 @@ This allow clients to modifie the the data that the server emits.
 ## Dataflow
 ![Dataflow](./docs/data-flow.jpg)
 
+![Stream-flow](./docs/stream-flow.png)
+
 ## Example
 ```sh
 node index.js
