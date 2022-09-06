@@ -14,7 +14,7 @@ node index.js
 ```
 
 ### Client #1
-```sh
+```js
 const { Transform } = require("stream");
 const WebSocket = require('ws');
 
