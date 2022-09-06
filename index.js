@@ -12,14 +12,16 @@ console.clear();
 process.nextTick(() => {
     [
         "client1.js",
-        "client2.js",
-        "client3.js",
-        "client4.js"
+        //"client2.js",
+        //"client3.js",
+        //"client4.js"
     ].forEach((file) => {
 
         console.log("Spawn client", file)
 
-        fork(file, [], {
+        fork(file, [
+            "--object"
+        ], {
             stdio: "ignore"
         });
 
@@ -27,7 +29,7 @@ process.nextTick(() => {
 });
 
 
-const dispatcher = require("./dispatcher");
+//const dispatcher = require("./dispatcher");
 const wrapper = require("./timeout-wrapper.js");
 
 const wss = new WebSocket.Server({
@@ -152,14 +154,22 @@ wss.on('close', () => {
 
 function triggerWsHooks(data, cb) {
 
+    console.clear();
+
+    let msg = {
+        uuid: randomUUID(),
+        type: "ping",
+        data
+    };
+
     output.once("data", (data) => {
         cb(data);
     });
 
     console.log();
-    console.log(`pipeline input: "${String(data)}"`);
+    console.log(colors.blue(`pipeline input: "${String(data)}"`));
 
-    input.write(data, () => {
+    input.write(JSON.stringify(msg), () => {
         //console.log("Writen");
     });
 
@@ -178,12 +188,12 @@ function loop() {
     triggerWsHooks(`[${counter}] Hello World - ${Date.now()}`, (data) => {
 
 
-        console.log(`pipeline output (${Date.now() - start}ms): "${String(data)}"`);
+        console.log(colors.blue(`pipeline output (${Date.now() - start}ms): "${String(data)}"`));
         console.log();
 
         setTimeout(() => {
             loop();
-        }, 100);
+        }, 1000);
 
     });
 
